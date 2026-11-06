@@ -41,8 +41,10 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 
-# Local Data Caches
+# Local Data Caches & Ledgers
 data/raw/
 data/cache/
+data/*.db
+*.db
 logs/*.log
 *.sqlite3

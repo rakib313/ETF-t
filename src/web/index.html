@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ETF-t // Quantitative Agent Trading Cockpit</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            brand: {
+              900: '#060913',
+              850: '#0b101e',
+              800: '#11182c',
+              700: '#1a243f',
+              600: '#233156',
+              accent: '#06b6d4',
+              green: '#10b981',
+              red: '#f43f5e'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background-color: #060913; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0b101e; }
+    ::-webkit-scrollbar-thumb { background: #1a243f; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #233156; }
+    @keyframes pulse-subtle {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .pulse-live { animation: pulse-subtle 2s infinite ease-in-out; }
+  </style>
+</head>
+<body class="text-slate-200 font-sans min-h-screen flex flex-col antialiased selection:bg-cyan-500 selection:text-black">
+
+  <!-- Top Navigation Bar -->
+  <header class="border-b border-brand-700/60 bg-brand-850/80 backdrop-blur sticky top-0 z-50 px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center space-x-3">
+      <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-500 to-emerald-400 flex items-center justify-center font-extrabold text-black text-sm shadow-lg shadow-cyan-500/20">
+        E
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="font-extrabold text-white tracking-tight text-lg">ETF-t</span>
+          <span class="text-xs font-mono uppercase bg-brand-700 text-cyan-400 px-2 py-0.5 rounded border border-cyan-500/30">Live Simulation</span>
+          <span class="text-xs font-mono uppercase bg-amber-950/60 text-amber-400 px-2 py-0.5 rounded border border-amber-500/30">Zero Cheating Mode</span>
+        </div>
+        <p class="text-[11px] text-slate-400 font-mono">Micro-Capital ETF Momentum & Risk Engine ($100 Starting Budget)</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <div id="connection-status" class="flex items-center gap-2 bg-brand-800 px-3 py-1.5 rounded-full border border-brand-700 text-xs font-mono">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-live"></span>
+        <span id="connection-text" class="text-emerald-400">Agent Connected</span>
+      </div>
+
+      <button onclick="triggerRebalance()" class="bg-cyan-500 hover:bg-cyan-400 text-black font-semibold text-xs px-3.5 py-2 rounded-lg shadow-md shadow-cyan-500/10 transition active:scale-95 flex items-center gap-1.5">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+        Rebalance Now
+      </button>
+
+      <button onclick="emergencyLiquidate()" class="bg-brand-700 hover:bg-brand-600 text-rose-300 font-semibold text-xs px-3 py-2 rounded-lg border border-rose-500/20 transition active:scale-95">
+        Liquidate All
+      </button>
+
+      <button onclick="resetAccount()" class="bg-brand-800 hover:bg-brand-700 text-slate-300 text-xs px-3 py-2 rounded-lg border border-brand-700 transition active:scale-95">
+        Reset to $100
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
+
+    <!-- KPI Metric Cards Grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      
+      <!-- Total Equity -->
+      <div class="bg-brand-850 p-5 rounded-xl border border-brand-700/70 shadow-sm relative overflow-hidden">
+        <div class="text-xs font-mono uppercase text-slate-400 tracking-wider">Total Portfolio Equity</div>
+        <div class="flex items-baseline gap-2 mt-2">
+          <div id="stat-equity" class="text-3xl font-extrabold text-white tracking-tight font-mono">$100.00</div>
+          <span id="stat-pnl-pct" class="text-xs font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-500/30">+0.00%</span>
+        </div>
+        <div class="text-[11px] font-mono text-slate-400 mt-2 flex items-center justify-between">
+          <span>Initial: $100.00</span>
+          <span id="stat-pnl-dollar" class="text-emerald-400">+$0.00</span>
+        </div>
+      </div>
+
+      <!-- Cash Reserve -->
+      <div class="bg-brand-850 p-5 rounded-xl border border-brand-700/70 shadow-sm">
+        <div class="text-xs font-mono uppercase text-slate-400 tracking-wider">Available Cash</div>
+        <div id="stat-cash" class="text-3xl font-extrabold text-white tracking-tight font-mono mt-2">$100.00</div>
+        <div class="text-[11px] font-mono text-slate-400 mt-2 flex items-center justify-between">
+          <span>Cash Buffer Target</span>
+          <span class="text-slate-300">2.0%</span>
+        </div>
+      </div>
+
+      <!-- Invested Market Value -->
+      <div class="bg-brand-850 p-5 rounded-xl border border-brand-700/70 shadow-sm">
+        <div class="text-xs font-mono uppercase text-slate-400 tracking-wider">Open Positions Value</div>
+        <div id="stat-market-val" class="text-3xl font-extrabold text-white tracking-tight font-mono mt-2">$0.00</div>
+        <div class="text-[11px] font-mono text-slate-400 mt-2 flex items-center justify-between">
+          <span>Active Slots</span>
+          <span id="stat-position-count" class="text-cyan-400">0 / 2 slots</span>
+        </div>
+      </div>
+
+      <!-- Realized PnL -->
+      <div class="bg-brand-850 p-5 rounded-xl border border-brand-700/70 shadow-sm">
+        <div class="text-xs font-mono uppercase text-slate-400 tracking-wider">Realized PnL (Closed Trades)</div>
+        <div id="stat-realized" class="text-3xl font-extrabold text-slate-300 tracking-tight font-mono mt-2">$0.00</div>
+        <div class="text-[11px] font-mono text-slate-400 mt-2 flex items-center justify-between">
+          <span>Modeled Slippage</span>
+          <span class="text-slate-400">0.05% / trade</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Middle Split: Chart & Agent Decision Feed -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- Left: Real-time Equity Curve -->
+      <div class="lg:col-span-7 bg-brand-850 p-5 rounded-xl border border-brand-700/70 flex flex-col">
+        <div class="flex items-center justify-between pb-3 mb-2 border-b border-brand-700/50">
+          <div>
+            <h2 class="font-bold text-white text-base">Equity Curve vs. Baseline</h2>
+            <p class="text-xs text-slate-400 font-mono">Live portfolio performance (Starting at $100)</p>
+          </div>
+          <span class="text-xs font-mono text-cyan-400 bg-cyan-950/60 px-2 py-1 rounded border border-cyan-500/20">Live Ticks</span>
+        </div>
+        <div class="flex-1 min-h-[280px] relative">
+          <canvas id="equityChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Right: Agent Thought Stream (The Agent's Live Brain) -->
+      <div class="lg:col-span-5 bg-brand-850 p-5 rounded-xl border border-brand-700/70 flex flex-col">
+        <div class="flex items-center justify-between pb-3 mb-2 border-b border-brand-700/50">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-cyan-400 pulse-live"></span>
+            <h2 class="font-bold text-white text-base">Agent Decision Stream</h2>
+          </div>
+          <span class="text-[11px] font-mono text-slate-400">Live Reasoning</span>
+        </div>
+        
+        <div id="agent-log-container" class="flex-1 font-mono text-xs overflow-y-auto space-y-2 max-h-[300px] pr-2">
+          <!-- Log entries injected here -->
+          <div class="text-slate-500 italic">Waiting for agent loop ticks...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Open Positions Table -->
+    <div class="bg-brand-850 rounded-xl border border-brand-700/70 overflow-hidden shadow-sm">
+      <div class="p-5 border-b border-brand-700/50 flex items-center justify-between">
+        <div>
+          <h2 class="font-bold text-white text-base">Active ETF Positions</h2>
+          <p class="text-xs text-slate-400 font-mono">Live positions with strict trailing stop-losses & profit targets</p>
+        </div>
+        <span class="text-xs font-mono text-slate-400">Max 2 Concurrent</span>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs font-mono">
+          <thead class="bg-brand-800 text-slate-400 border-b border-brand-700/60 uppercase text-[11px]">
+            <tr>
+              <th class="py-3 px-4">Ticker</th>
+              <th class="py-3 px-4">Shares (Fractional)</th>
+              <th class="py-3 px-4">Entry Price</th>
+              <th class="py-3 px-4">Current Price</th>
+              <th class="py-3 px-4">Market Value</th>
+              <th class="py-3 px-4">Stop Loss (-5%)</th>
+              <th class="py-3 px-4">Take Profit (+10%)</th>
+              <th class="py-3 px-4 text-right">Floating PnL</th>
+            </tr>
+          </thead>
+          <tbody id="positions-table-body" class="divide-y divide-brand-700/40">
+            <tr>
+              <td colspan="8" class="text-center py-6 text-slate-500 italic">No open positions. Running 100% cash buffer.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Order Execution History -->
+    <div class="bg-brand-850 rounded-xl border border-brand-700/70 overflow-hidden shadow-sm">
+      <div class="p-5 border-b border-brand-700/50 flex items-center justify-between">
+        <div>
+          <h2 class="font-bold text-white text-base">Execution Audit Trail</h2>
+          <p class="text-xs text-slate-400 font-mono">Immutable SQLite order ledger with modeled slippage deduction</p>
+        </div>
+        <span class="text-xs font-mono text-slate-400">Zero-Cheating Verification</span>
+      </div>
+
+      <div class="overflow-x-auto max-h-64 overflow-y-auto">
+        <table class="w-full text-left text-xs font-mono">
+          <thead class="bg-brand-800 text-slate-400 border-b border-brand-700/60 uppercase text-[11px] sticky top-0">
+            <tr>
+              <th class="py-2.5 px-4">Time</th>
+              <th class="py-2.5 px-4">Side</th>
+              <th class="py-2.5 px-4">Ticker</th>
+              <th class="py-2.5 px-4">Shares</th>
+              <th class="py-2.5 px-4">Price</th>
+              <th class="py-2.5 px-4">Notional</th>
+              <th class="py-2.5 px-4">Slippage</th>
+              <th class="py-2.5 px-4">Execution Reason</th>
+            </tr>
+          </thead>
+          <tbody id="orders-table-body" class="divide-y divide-brand-700/40">
+            <tr>
+              <td colspan="8" class="text-center py-6 text-slate-500 italic">No orders executed yet.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <footer class="border-t border-brand-700/40 py-4 px-6 text-center text-xs font-mono text-slate-500">
+    ETF-t // Quantitative Algorithmic Trading Lab • Verified Paper Trading Ledger (Non-Cheating Mode)
+  </footer>
+
+  <!-- Frontend Controller Script -->
+  <script>
+    let equityChart = null;
+    let ws = null;
+
+    // Initialize Chart.js
+    function initChart() {
+      const ctx = document.getElementById('equityChart').getContext('2d');
+      equityChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label: 'Portfolio Equity ($)',
+              data: [],
+              borderColor: '#06b6d4',
+              backgroundColor: 'rgba(6, 182, 212, 0.08)',
+              borderWidth: 2,
+              pointRadius: 2,
+              tension: 0.2,
+              fill: true
+            },
+            {
+              label: 'Starting Capital ($100)',
+              data: [],
+              borderColor: '#64748b',
+              borderDash: [4, 4],
+              borderWidth: 1.5,
+              pointRadius: 0,
+              fill: false
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              labels: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 11 } }
+            }
+          },
+          scales: {
+            x: {
+              ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 8 },
+              grid: { color: 'rgba(30, 41, 59, 0.5)' }
+            },
+            y: {
+              ticks: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 10 }, callback: v => '$' + v.toFixed(2) },
+              grid: { color: 'rgba(30, 41, 59, 0.5)' }
+            }
+          }
+        }
+      });
+    }
+
+    // Connect WebSocket
+    function connectWebSocket() {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/ws`;
+
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        document.getElementById('connection-text').innerText = 'Agent Connected';
+        document.getElementById('connection-text').className = 'text-emerald-400';
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'INITIAL_STATE' || data.type === 'TICK_UPDATE') {
+          updateUI(data.state, data.history, data.logs, data.orders);
+        }
+      };
+
+      ws.onclose = () => {
+        document.getElementById('connection-text').innerText = 'Reconnecting...';
+        document.getElementById('connection-text').className = 'text-amber-400';
+        setTimeout(connectWebSocket, 3000);
+      };
+
+      ws.onerror = () => {
+        ws.close();
+      };
+    }
+
+    // Update UI components
+    function updateUI(state, history, logs, orders) {
+      if (!state) return;
+
+      // 1. KPI cards
+      document.getElementById('stat-equity').innerText = `$${state.total_equity.toFixed(2)}`;
+      document.getElementById('stat-cash').innerText = `$${state.cash.toFixed(2)}`;
+      document.getElementById('stat-market-val').innerText = `$${state.market_value.toFixed(2)}`;
+      document.getElementById('stat-position-count').innerText = `${state.positions_count} / 2 slots`;
+      document.getElementById('stat-realized').innerText = `$${state.realized_pnl.toFixed(2)}`;
+
+      const pnlPct = state.total_return_pct;
+      const pnlElem = document.getElementById('stat-pnl-pct');
+      const pnlDollarElem = document.getElementById('stat-pnl-dollar');
+      const dollarDiff = state.total_equity - state.initial_capital;
+
+      pnlElem.innerText = `${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`;
+      pnlDollarElem.innerText = `${dollarDiff >= 0 ? '+' : ''}$${dollarDiff.toFixed(2)}`;
+
+      if (pnlPct >= 0) {
+        pnlElem.className = 'text-xs font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-500/30';
+        pnlDollarElem.className = 'text-emerald-400 font-mono';
+      } else {
+        pnlElem.className = 'text-xs font-mono font-bold px-1.5 py-0.5 rounded bg-rose-950 text-rose-400 border border-rose-500/30';
+        pnlDollarElem.className = 'text-rose-400 font-mono';
+      }
+
+      // 2. Positions Table
+      const posTable = document.getElementById('positions-table-body');
+      if (!state.positions || state.positions.length === 0) {
+        posTable.innerHTML = `<tr><td colspan="8" class="text-center py-6 text-slate-500 italic">No open positions. 100% Cash / Treasury Reserve.</td></tr>`;
+      } else {
+        posTable.innerHTML = state.positions.map(p => {
+          const isPos = p.unrealized_pnl >= 0;
+          return `
+            <tr class="hover:bg-brand-800/50 transition">
+              <td class="py-3 px-4 font-bold text-white">${p.ticker}</td>
+              <td class="py-3 px-4 text-cyan-400 font-bold">${p.shares.toFixed(4)}</td>
+              <td class="py-3 px-4">$${p.avg_entry_price.toFixed(2)}</td>
+              <td class="py-3 px-4 text-white font-bold">$${p.current_price.toFixed(2)}</td>
+              <td class="py-3 px-4">$${p.market_value.toFixed(2)}</td>
+              <td class="py-3 px-4 text-rose-400">$${p.stop_loss_price.toFixed(2)}</td>
+              <td class="py-3 px-4 text-emerald-400">${p.take_profit_price ? '$' + p.take_profit_price.toFixed(2) : '-'}</td>
+              <td class="py-3 px-4 text-right font-bold ${isPos ? 'text-emerald-400' : 'text-rose-400'}">
+                ${isPos ? '+' : ''}$${p.unrealized_pnl.toFixed(2)} (${isPos ? '+' : ''}${p.unrealized_pnl_pct.toFixed(2)}%)
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      // 3. Orders Table
+      const ordersTable = document.getElementById('orders-table-body');
+      if (orders && orders.length > 0) {
+        ordersTable.innerHTML = orders.map(o => {
+          const isBuy = o.side === 'BUY';
+          const time = o.timestamp ? o.timestamp.substring(11, 19) : '--';
+          return `
+            <tr class="hover:bg-brand-800/40">
+              <td class="py-2.5 px-4 text-slate-400">${time} UTC</td>
+              <td class="py-2.5 px-4 font-bold ${isBuy ? 'text-emerald-400' : 'text-rose-400'}">${o.side}</td>
+              <td class="py-2.5 px-4 font-bold text-white">${o.ticker}</td>
+              <td class="py-2.5 px-4">${o.shares.toFixed(4)}</td>
+              <td class="py-2.5 px-4">$${o.execution_price.toFixed(2)}</td>
+              <td class="py-2.5 px-4">$${o.notional.toFixed(2)}</td>
+              <td class="py-2.5 px-4 text-slate-500">$${o.slippage_cost.toFixed(4)}</td>
+              <td class="py-2.5 px-4 text-slate-300">${o.reason}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      // 4. Agent Thoughts Log
+      const logContainer = document.getElementById('agent-log-container');
+      if (logs && logs.length > 0) {
+        logContainer.innerHTML = logs.map(l => {
+          const time = l.timestamp ? l.timestamp.substring(11, 19) : '--';
+          const isWarn = l.level === 'WARN';
+          return `
+            <div class="p-2 rounded bg-brand-800/60 border border-brand-700/50 flex gap-2">
+              <span class="text-slate-500 font-mono">[${time}]</span>
+              <span class="flex-1 ${isWarn ? 'text-amber-300 font-semibold' : 'text-slate-300'}">${l.message}</span>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // 5. Update Chart
+      if (equityChart && history && history.length > 0) {
+        const labels = history.map(h => h.timestamp ? h.timestamp.substring(11, 19) : '');
+        const dataEquity = history.map(h => h.total_equity);
+        const dataBaseline = history.map(() => 100.0);
+
+        equityChart.data.labels = labels;
+        equityChart.data.datasets[0].data = dataEquity;
+        equityChart.data.datasets[1].data = dataBaseline;
+        equityChart.update('none');
+      }
+    }
+
+    // Action Handlers
+    async function triggerRebalance() {
+      await fetch('/api/cycle', { method: 'POST' });
+    }
+
+    async function emergencyLiquidate() {
+      if (confirm('Liquidate all open ETF positions and rotate 100% into cash?')) {
+        await fetch('/api/liquidate', { method: 'POST' });
+      }
+    }
+
+    async function resetAccount() {
+      if (confirm('Reset paper balance back to $100.00?')) {
+        await fetch('/api/reset', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ balance: 100.0 })
+        });
+      }
+    }
+
+    // Bootstrap
+    window.addEventListener('DOMContentLoaded', () => {
+      initChart();
+      connectWebSocket();
+    });
+  </script>
+</body>
+</html>
+
